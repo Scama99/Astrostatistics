@@ -1,0 +1,1110 @@
+---
+title: Análisis estadístico de datos del “Kepler Space Observatory (KSO)” objetos
+  de interés candidatos a ser exoplanetas
+author: Santiago Escamilla del Angel, Andre Sebastián García Ward, Ricardo Covarrubias
+  Yeffal,José Miguel Rodriguez Barrera
+date: "25/01/2022"
+output:
+  pdf_document: default
+  language: "es-Es"
+  html_document: null
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+INTRODUCCIÓN El observatorio "The Kepler Space Observatory (KSO)" es un
+satélite hecho por la NASA que fue puesto en órbita en 2009. El objetivo
+de este observatorio es la búsqueda de exoplanetas en sistemas solares
+ajenos al nuestro con el objetivo primordial de encontrar otros planetas
+habitables. Este objetivo fue olvidado debido a fallas mecánicas del
+satélite, sin embargo sigue en uso para otros fines.
+
+La base de datos que se va a utilizar en este proyecto contiene
+aproximadamente 10,000 observaciones de "objetos de interés", que son
+básicamente candidatos a ser exoplanetas, hechos por KSO hasta el año
+2017.
+
+La fuente de esta base de datos se encuentra en el siguiente enlace:
+<https://www.kaggle.com/nasa/kepler-exoplanet-search-results> , sin
+embargo en dicho enlace se hace referencia a la base de datos orginal
+que se encuentra en:
+<https://exoplanetarchive.ipac.caltech.edu/docs/data.html> , mismo
+enlace en el que podemos encontrar un diccionario de la terminología que
+se usa en la base de datos (cuyo enlace explícito es
+<https://exoplanetarchive.ipac.caltech.edu/docs/API_kepcandidate_columns.html>).
+Fue de gran utilidad para este proyecto tener este diccionario, ya que
+nos permitió leer claramente la base de datos.
+
+OBJETIVO -Aplicar diferentes métodos de análisis estadístico al conjunto
+de datos ante señalado
+
+Descripción de las variables
+
+Hay tres variables cuantitativas y una cualitativa asociadas a los
+exoplanetas y dos variables cuantitativas asociadas a los soles de sus
+sistemas.
+
+Variables de los Exoplanetas (de razón, salvo por la cualitativa):
+
+| Tipo de Variable | Nombre de la Variable                            | Descripción                                                                                                                                                                                                                                                                                                                                                                                         |
+|----------|----------|---------------------------------------------------|
+| Cuantitativa     | Temperatura de Equilibrio (K) (koi_teq)          | "Una aproximación para la temperatura del planeta. Este cálculo asume las siguientes consideraciones: Equilibrio termodinámico entre el flujo estelar y el calor irradiado del planeta. Enlace de Albedo El planeta y el sol son cuerpos negros El calor se distribuye de forma pareja entre el lado de día y de noche del planeta." Con esta variable se identifica la temperatura del exoplaneta. |
+| Cuantitativa     | Radio del planeta (Radios terrestres) (koi_prad) | "El radio planetario es el producto del radio de la estrella del planeta con el radio estelar." Para conseguir el periodo de los planetas no es posible medir de forma igual que como se hace con planetas del sistema solar, es por eso que los astrónomos recurren a este tipo de cálculos para poder tener dichas mediciones.                                                                    |
+| Cuantitativa     | Periodo del planeta (días) (koi_period)          | "El intervalo de tiempo entre tránsito planetario consecutivo." Ya conocemos esta variable, por lo que no se requiere mayor explicación.                                                                                                                                                                                                                                                            |
+| Cualitativa      | Disposición del planeta (koi_disposition)        | "Los valores que se pueden admitir son CANDIDATO, FALSO POSITIVO, SIN DISPOSICIÓN ó CONFIRMADO." La variable clasifica a los planetas dentro de una lista en los que los que califican como candidatos o confirmados son los exoplanetas que ya se consideran como tal. Los demás pueden ser falsos positivos, sin disposición y sin disposición.                                                   |
+
+Variables de los soles de los exoplanetas (de razón)
+
+| Tipo de Variable | Nombre de la Variable                | Descripción                                                                                                                                                                                                                                                                                                                                                                                 |
+|----------|----------|----------------------------------------------------|
+| Cuantitativa     | Radio (radios terrestres) (koi_srad) | "El radio fotosférico de la estrella." Es importante recalcar que los radios de soles muchas veces se miden con respecto al radio de la fotosfera. Esta es la superficie luminosa que delimita al cuerpo celeste. Más adelante se comenta otro aspecto que le da relevancia.                                                                                                                |
+| Cuantitativa     | Temperatura efectiva (K) (koi_steff) | "Las temperatura fotosférica de la estrella." Al analizar la fotosfera debemos de saber que ella es una capa de gases que vista con telescopios muestra folículos y bordes, con lo cual es fácil darle un radio. Además de ella emana la radiación que emite la estrella. Ref: Ambatsumián, V.A. (1966). «I». Astrofísica Teórica. Argentina: Editorial Universitaria de Buenos Aires. p. 3 |
+
+```{r}
+library(rio)
+exo_planetas_p1<- read.csv('/Users/114738/OneDrive/Escritorio/Proyectos/cumulative.csv');
+```
+
+Seleccionamos las variables que nos interesan
+
+```{r}
+library(dplyr)
+exo_planetas_p2 <- dplyr::select(exo_planetas_p1, kepoi_name, koi_disposition ,koi_period, koi_prad, koi_teq, koi_srad,koi_steff)
+```
+
+```{r}
+library(tidyr)
+exo_planetas_p3 = exo_planetas_p2 %>% group_by(kepoi_name) %>%   
+dplyr::filter (! duplicated(kepoi_name)) 
+
+library(tidyr)
+exo_planetas_p4 = tidyr::drop_na(exo_planetas_p3)
+attach(exo_planetas_p4)
+
+```
+
+Para la variable temperatura realizamos el análisis exploratorio,
+similar al de la actividad 2:
+
+```{r}
+caja_temp <- boxplot(exo_planetas_p4$koi_teq,horizontal=T,col="green",main="Distribución de temperatura en exoplanetas")
+
+hist_temp <- hist(exo_planetas_p4$koi_teq, main = "Distribución de temperatura en exoplanetas", xlab = "Temperatura", ylab = "Frecuencia", col = "green", breaks = 70)
+
+n <- length(hist_temp$breaks)
+Tab_pl_temp <- cbind(hist_temp$breaks[-n],hist_temp$breaks[-1],
+                hist_temp$counts,
+                hist_temp$counts/sum(hist_temp$counts),
+                cumsum(hist_temp$counts),
+                cumsum(hist_temp$counts/sum(hist_temp$counts)))
+dimnames(Tab_pl_temp)[[2]]<-c("Linf","Lsup","f","fr","F","Fr")
+
+print(Tab_pl_temp)
+
+library(fdth)
+mean(exo_planetas_p4$koi_teq)
+median(exo_planetas_p4$koi_teq)
+mfv(exo_planetas_p4$koi_teq)
+
+max(exo_planetas_p4$koi_teq)
+min(exo_planetas_p4$koi_teq)
+range(exo_planetas_p4$koi_teq)
+var(exo_planetas_p4$koi_teq)
+sd(exo_planetas_p4$koi_teq)
+mad(exo_planetas_p4$koi_teq)
+
+quantile(exo_planetas_p4$koi_teq, probs = c(0.25,0.50,0.75))
+
+
+```
+
+En primer lugar podemos ver que hay una clara tendencia de los valores
+hacia la izquierda, es decir que la mayoría de los datos que se
+obtuvieron indican que los planetas tienen temperaturas absolutas
+similares entre sí, esto se ve justificado por el cálculo cuantil de los
+datos. Si buscamos realizar conclusiones necesitaríamos conocer a
+profundidad los métodos con los cuales se realizaron las observaciones.
+Sin embargo la tendencia se va a repetir bastante en las siguientes
+variables.
+
+También podemos notar que existen valores que parecen ser errores de
+observación. Hay tres datos, aunque podrían ser alrededor de 10, que
+sobresalen por completo de la gráfica de caja por tener, al parecer, una
+temperatura extremadamente alta. Sin embargo, como no tenemos suficiente
+información, no podemos concluir demasiado, únicamente destacar que hay
+varios datos (entre tres o diez) que parecen no pertenecer a la base de
+datos.
+
+Finalmente, podemos ver que la varianza es muy grade, esto implica que
+la medida del promedio no es nada confiable.
+
+Para el radio de los planetas:
+
+```{r}
+caja_prad <- boxplot(exo_planetas_p4$koi_prad,horizontal=T,col="green", main="Distribución del radio de los exoplanetas")
+
+hist_prad <- hist(exo_planetas_p4$koi_prad, main = "Distribución del radio de los exoplanetas", xlab = "Temperatura", ylab = "Frecuencia", col = "green", breaks = 70)
+
+n <- length(hist_prad$breaks)
+Tab_pl_prad <- cbind(hist_prad$breaks[-n],hist_prad$breaks[-1],
+                hist_prad$counts,
+                hist_prad$counts/sum(hist_prad$counts),
+                cumsum(hist_prad$counts),
+                cumsum(hist_prad$counts/sum(hist_prad$counts)))
+dimnames(Tab_pl_prad)[[2]]<-c("Linf","Lsup","f","fr","F","Fr")
+
+print(Tab_pl_prad)
+
+library(fdth)
+mean(exo_planetas_p4$koi_prad)
+median(exo_planetas_p4$koi_prad)
+mfv(exo_planetas_p4$koi_prad)
+
+max(exo_planetas_p4$koi_prad)
+min(exo_planetas_p4$koi_prad)
+range(exo_planetas_p4$koi_prad)
+var(exo_planetas_p4$koi_prad)
+sd(exo_planetas_p4$koi_prad)
+mad(exo_planetas_p4$koi_prad)
+
+quantile(exo_planetas_p4$koi_prad, probs = c(0.25,0.50,0.75))
+
+```
+
+En primer lugar podemos ver la tendencia de los valores es muy parecida
+a la de los datos anteriores, es decir que la mayoría de los datos que
+se obtuvieron indican que los planetas tienen radios similares entre sí,
+nuevamente esto se ve justificado por el cálculo cuantil de los datos.
+
+Nuevamente podemos notar que existen valores que parecen ser errores de
+observación. Hay siete datos, aunque podrían diez, que sobresalen por
+completo de la gráfica de caja por tener un radio enorme. En este caso
+las conclusiones son menos contundentes que en el caso anterior, ya que
+se conocen planetas con un radio mucho mayor al de la tierra, sin
+embargo esto parece que es demasiado, sin embargo, nuevamente no
+contamos con demasiada información y es relevante destacar que hay
+varios datos que parecen no pertenecer a la base de datos.
+
+Nuevamente vemos que la varianza es muy grade y por tanto la medida del
+promedio no es nada confiable.
+
+Para el periodo de los planetas
+
+```{r}
+
+caja_period <- boxplot(exo_planetas_p4$koi_period,horizontal=T,col="green", main="Distribución del periodo de los exoplanetas")
+
+hist_period <- hist(exo_planetas_p4$koi_period, main = "Distribución del periodo en exoplanetas", xlab = "Periodo", ylab = "Frecuencia", col = "green", breaks = 70)
+
+n <- length(hist_period$breaks)
+Tab_pl_period <- cbind(hist_period$breaks[-n],hist_period$breaks[-1],
+                hist_period$counts,
+                hist_period$counts/sum(hist_period$counts),
+                cumsum(hist_period$counts),
+                cumsum(hist_period$counts/sum(hist_period$counts)))
+dimnames(Tab_pl_period)[[2]]<-c("Linf","Lsup","f","fr","F","Fr")
+
+print(Tab_pl_period)
+
+library(fdth)
+mean(exo_planetas_p4$koi_period)
+median(exo_planetas_p4$koi_period)
+mfv(exo_planetas_p4$koi_period)
+
+max(exo_planetas_p4$koi_period)
+min(exo_planetas_p4$koi_period)
+range(exo_planetas_p4$koi_period)
+var(exo_planetas_p4$koi_period)
+sd(exo_planetas_p4$koi_period)
+mad(exo_planetas_p4$koi_period)
+
+quantile(exo_planetas_p4$koi_period, probs = c(0.25,0.50,0.75))
+
+```
+
+Nuevamente la tendencia de los valores es muy parecida a la de los datos
+anteriores y la mayoría de los datos que se obtuvieron indican que los
+planetas tienen periodos similares entre sí, nuevamente esto se ve
+justificado por el cálculo cuantil de los datos.
+
+Nuevamente podemos notar que existe un valor que parece ser un error de
+observación. El dato sobresale por completo de la gráfica de caja por
+tener un periodo exageradamente grande. En este caso las conclusiones
+son mucho menos contundentes que en el caso anterior ya que no contamos
+con información suficiente para determinar si esto es posible.
+
+De nuevo la varianza es muy grade y por tanto la medida del promedio no
+es nada confiable.
+
+Para el radio del Sol
+
+```{r}
+
+caja_radS <- boxplot(exo_planetas_p3$koi_srad,horizontal=T,col="green", main="Distribución del radio de los soles de los exoplanetas")
+
+hist_radS <- hist(exo_planetas_p3$koi_srad, main = "Distribución del radio de los soles de los exoplanetas", xlab = "Radio Sol", ylab = "Frecuencia", col = "green", breaks = 70)
+
+n <- length(hist_radS$breaks)
+Tab_pl_radS <- cbind(hist_radS$breaks[-n],hist_radS$breaks[-1],
+                hist_radS$counts,
+                hist_radS$counts/sum(hist_radS$counts),
+                cumsum(hist_radS$counts),
+                cumsum(hist_radS$counts/sum(hist_radS$counts)))
+dimnames(Tab_pl_radS)[[2]]<-c("Linf","Lsup","f","fr","F","Fr")
+
+print(Tab_pl_radS)
+
+library(fdth)
+mean(exo_planetas_p4$koi_srad)
+median(exo_planetas_p4$koi_srad)
+mfv(exo_planetas_p4$koi_srad)
+
+max(exo_planetas_p4$koi_srad, na.rm = FALSE)
+min(exo_planetas_p4$koi_srad)
+range(exo_planetas_p4$koi_srad)
+var(exo_planetas_p4$koi_srad)
+sd(exo_planetas_p4$koi_srad)
+mad(exo_planetas_p4$koi_srad)
+
+
+quantile(exo_planetas_p4$koi_srad, probs = c(0.25,0.50,0.75))
+
+```
+
+Como podemos observar se sigue la misma tendencia que vimos en el
+análisis de las variables cuantitativas de los exoplanetas. Nuevamente
+los datos indican que la mayoría de los radios de los soles son
+parecidos entre sí. La mayor diferencia con los datos que se obtuvieron
+previamente es que los datos que sobresalen de los rangos es un poco
+mayor, son al menos diez valores que parecen no pertenecer al conjunto
+de datos, esto se puede dar por errores de medición o porque en realidad
+si haya soles con un radio de ese tamaño, sin embargo no contamos con la
+información suficiente como para conocer las razones por las que eso
+sucedió.
+
+También hay otra diferencia en el análisis de estos datos, vemos que en
+este caso la varianza no es muy grande, por lo que las medidas del
+promedio no son del todo desconfiables, esto se debe a que la cantidad
+de datos que parecen no pertenecer a la base de datos es
+considerablemente mayor a las de las variables anteriores.
+
+Para la temperatura efectiva del Sol
+
+```{r}
+
+caja_steff <- boxplot(exo_planetas_p3$koi_steff,horizontal=T,col="green", main="Distribución del la temperatura efectiva de soles de los exoplanetas")
+
+hist_steff <- hist(exo_planetas_p3$koi_steff, main = "Distribución del la temperatura efectiva de soles de los exoplanetas", xlab = "Radio Sol", ylab = "Frecuencia", col = "green", breaks = 70)
+
+n <- length(hist_steff$breaks)
+Tab_pl_steff <- cbind(hist_steff$breaks[-n],hist_steff$breaks[-1],
+                hist_steff$counts,
+                hist_steff$counts/sum(hist_steff$counts),
+                cumsum(hist_steff$counts),
+                cumsum(hist_steff$counts/sum(hist_steff$counts)))
+dimnames(Tab_pl_steff)[[2]]<-c("Linf","Lsup","f","fr","F","Fr")
+
+print(Tab_pl_steff)
+
+library(fdth)
+mean(exo_planetas_p4$koi_steff)
+median(exo_planetas_p4$koi_steff)
+mfv(exo_planetas_p4$koi_steff)
+
+max(exo_planetas_p4$koi_steff, na.rm = FALSE)
+min(exo_planetas_p4$koi_steff)
+range(exo_planetas_p4$koi_steff)
+var(exo_planetas_p4$koi_steff)
+sd(exo_planetas_p4$koi_steff)
+mad(exo_planetas_p4$koi_steff)
+
+
+quantile(exo_planetas_p4$koi_steff, probs = c(0.25,0.50,0.75))
+
+```
+
+Esta es la variable que destaca por encima de todas por tener, en primer
+lugar una distribución más adecuada para el análisis exploratorio de
+datos, ya que, aunque hay todavía un sesgo de los datos hacia la
+izquierda, no es el caso extremo como lo es en las demás variables, en
+las que podemos ver solamente una barra pegada al eje de las
+frecuencias. Esto indica que los datos asociados a esta variable parecen
+ser más confiables, aunque no del todo. En la gráfica de caja se ve
+claramente que hay muchos datos fuera de los bigotes, y un dato que se
+encuentra claramente fuera, lo que nos indica que debió ser un error de
+medición, aunque nuevamente no hay suficiente información para poder
+llegar a conclusiones.
+
+En este caso la varianza es muy alta nuevamente, por lo que el cálculo
+del promedio no es confiable.
+
+Para hacer el análisis incluyendo la variable cualitativa formamos dos
+bases de datos nuevas en las que se tienen los exoplanetas confirmados y
+los exoplanetas que dieron falso positivo.
+
+```{r}
+exo_planetas_p5 <- dplyr::select(exo_planetas_p4, koi_disposition , koi_teq)
+
+exo_planetas_confirmados <- exo_planetas_p5 %>% dplyr::filter(koi_disposition == 'CONFIRMED') %>% group_by (koi_disposition)
+
+caja_conft <- boxplot(exo_planetas_confirmados$koi_teq,horizontal=T,col="green", main="Distribución del la temperatura en los exoplanetas confirmados")
+
+hist_conft <- hist(exo_planetas_confirmados$koi_teq, main = "Distribución del la temperatura en los exoplanetas confirmados", xlab = "Radio Sol", ylab = "Frecuencia", col = "green", breaks = 70)
+
+n <- length(hist_conft$breaks)
+Tab_pl_conft <- cbind(hist_conft$breaks[-n],hist_conft$breaks[-1],
+                hist_conft$counts,
+                hist_conft$counts/sum(hist_conft$counts),
+                cumsum(hist_conft$counts),
+                cumsum(hist_conft$counts/sum(hist_conft$counts)))
+dimnames(Tab_pl_conft)[[2]]<-c("Linf","Lsup","f","fr","F","Fr")
+
+print(Tab_pl_conft)
+
+library(fdth)
+mean(exo_planetas_confirmados$koi_teq)
+median(exo_planetas_confirmados$koi_teq)
+mfv(exo_planetas_confirmados$koi_teq)
+
+max(exo_planetas_confirmados$koi_teq, na.rm = FALSE)
+min(exo_planetas_confirmados$koi_teq)
+range(exo_planetas_confirmados$koi_teq)
+var(exo_planetas_confirmados$koi_teq)
+sd(exo_planetas_confirmados$koi_teq)
+mad(exo_planetas_confirmados$koi_teq)
+
+
+quantile(exo_planetas_confirmados$koi_teq, probs = c(0.25,0.50,0.75))
+
+
+```
+
+Como podemos apreciar, los datos filtrados por variable cualitativa
+presentan sesgos muy parecidos a los de los datos previamente
+analizados, esto es extraño ya que esperábamos ver que los datos de los
+exoplanetas tuvieran consistencia entre sí, sin embargo por la falta de
+información no podemos decir que los datos que parecen no pertenecer a
+esta base de datos deban dejar de ser exoplanetas.
+
+```{r}
+exo_planetas_falsospositivos <- exo_planetas_p5 %>% dplyr::filter(koi_disposition == 'FALSE POSITIVE') %>% group_by (koi_disposition)
+
+caja_falp <- boxplot(exo_planetas_falsospositivos$koi_teq,horizontal=T,col="green", main="Distribución del la temperatura en los exoplanetas confirmados")
+
+hist_falp <- hist(exo_planetas_falsospositivos$koi_teq, main = "Distribución del la temperatura en los exoplanetas confirmados", xlab = "Radio Sol", ylab = "Frecuencia", col = "green", breaks = 70)
+
+n <- length(hist_conft$breaks)
+Tab_pl_falp <- cbind(hist_falp$breaks[-n],hist_falp$breaks[-1],
+                hist_falp$counts,
+                hist_falp$counts/sum(hist_falp$counts),
+                cumsum(hist_falp$counts),
+                cumsum(hist_falp$counts/sum(hist_falp$counts)))
+dimnames(Tab_pl_falp)[[2]]<-c("Linf","Lsup","f","fr","F","Fr")
+
+print(Tab_pl_falp)
+
+library(fdth)
+mean(exo_planetas_falsospositivos$koi_teq)
+median(exo_planetas_falsospositivos$koi_teq)
+mfv(exo_planetas_falsospositivos$koi_teq)
+
+max(exo_planetas_falsospositivos$koi_teq, na.rm = FALSE)
+min(exo_planetas_falsospositivos$koi_teq)
+range(exo_planetas_falsospositivos$koi_teq)
+var(exo_planetas_falsospositivos$koi_teq)
+sd(exo_planetas_falsospositivos$koi_teq)
+mad(exo_planetas_falsospositivos$koi_teq)
+
+
+quantile(exo_planetas_falsospositivos$koi_teq, probs = c(0.25,0.50,0.75))
+
+
+```
+
+Para esta base de datos filtrados podemos observar que los sesgos y
+patrones de los datos previamente analizados se conservan, lo cuál era
+de esperarse ya que para que los planetas no sean considerados
+exoplanetas consideramos que no deberían necesariamente tener una
+temperatura similar entre sí. Nuevamente nos encontramos en una
+situación en la que no hay posibilidades de concluir ya que nos hace
+falta mucha información.
+
+Finalmente haremos un análisis cualitativo de la variable del radio
+planetario, como ya conocemos el máximo vamos a subdividir a los
+planetas en tamaños, Súper, Grande, Mediano, Chico y Diminuto.
+
+Ahora dividimos el rango en 5 en intervalos de 3500:
+
+Planeta diminuto: 0 a 40069 Planeta chico: 40069 a 80138 Planeta
+mediano: 80138 a 120207 Planeta grande: 120207 a 160276 Planeta súper:
+160276 a 200346
+
+```{r}
+exo_vector<- as.vector(exo_planetas_p4['koi_prad'])
+max(exo_planetas_p4$koi_prad)
+```
+
+```{r}
+
+exo_pl7 <- NA
+exo_pl7[exo_planetas_p4$koi_prad >= 0 & exo_planetas_p4$koi_prad <= 40080] <- 'Diminuto'
+exo_pl7[exo_planetas_p4$koi_prad > 40080 & exo_planetas_p4$koi_prad <= 80200] <- 'Chico'
+exo_pl7[exo_planetas_p4$koi_prad > 80200 & exo_planetas_p4$koi_prad <= 120300] <- 'Mediano'     
+exo_pl7[exo_planetas_p4$koi_prad > 120300 & exo_planetas_p4$koi_prad <= 160300] <- 'Grande'
+exo_pl7[exo_planetas_p4$koi_prad > 160300 & exo_planetas_p4$koi_prad <= 200500] <- 'Súper'
+
+(tabla4 = table(exo_pl7))
+```
+
+De esta tabla podemos ver que ni si quiera hay datos grandes, por lo que
+ya hay indicios de que esta forma de analizar no es adecuada para esta
+variable.
+
+```{r}
+barplot(tabla4,names.arg=c("Diminuto","Chico","Mediano",'Súper'), col=3, ylim=c(0,750), main = "Gráfica de barras de exoplanetas por radio")
+pie(tabla4,labels=paste(c("Súper","Mediano","Pequeño","Diminuto"),tabla4,sep=":"), col=5:7, radius=1,main = "Grafica de pie de exoplanetas por radio")
+```
+
+Es notable que ninguno de los recursos gráficos es adecuado para
+estudiar esta variable.
+
+Aunque no sea adecuado analizar, la única información que podemos
+recuperar es la del cesgo hacia la izquierda, por lo tanto, del análisis
+exploratorio podemos ver que el sesgo que vimos en el análisis de las
+variables cuantitativas también aparece en el análisis cualitativo.
+
+```{r warning = FALSE}
+#Primero "depuraremos" la información eliminando los NA's y repetidos
+
+setwd("C:/Users/114738/OneDrive/Escritorio/Proyectos")
+kepler = read.csv('/Users/114738/OneDrive/Escritorio/Proyectos/cumulative.csv')
+
+library(dplyr)
+kepler1 = dplyr::select(kepler, kepoi_name, koi_prad, koi_teq, koi_period, koi_srad, koi_steff)
+kepler2 = kepler1 %>% group_by(kepoi_name) %>%   
+dplyr::filter (! duplicated(kepoi_name)) 
+library(tidyr)
+kepler3 = drop_na(kepler2)
+attach(kepler3)
+```
+
+```{r}
+#Procedemos a ver la distribución de datos en cada variable
+boxplot(koi_prad,horizontal=T,col="yellow",main="Distribución de prad")
+
+boxplot(koi_teq,horizontal=T,col="yellow",main="Distribución de temperatura planetas")
+
+boxplot(koi_period,horizontal=T,col="yellow",main="Distribución de periodo")
+
+boxplot(koi_srad,horizontal=T,col="yellow",main="Distribución de srad")
+
+boxplot(koi_steff,horizontal=T,col="yellow",main="Distribución de temperatura estrellas")
+
+
+```
+
+```{r}
+#Tomaremos la variable cuantitativa koi_steff
+mean(koi_steff)
+var(koi_steff)
+sd(koi_steff)
+max(koi_steff)
+min(koi_steff)
+hist(koi_steff, main = "Distribución de masa en exoplanetas", xlab = "Masas Terrestres", ylab = "Frecuencia", col = "blue")
+```
+
+```{r}
+#Propondremos el modelo probabilístico de la distribución Gamma
+#Para determinar alfa y beta procederemos a resolver el sistema de ecuaciones de #2 incógnitas usando las relaciones entre alfa, beta con el promedio y la #varianza, donde miu = promedio, v = varianza, b = beta y a = alfa, tendremos:
+#miu = a*b y v = a*b^2 con cuentitas queda a = miu^2/v y b = v/miu
+
+alfa = mean(koi_steff)^2/var(koi_steff)
+beta = var(koi_steff)/mean(koi_steff)
+"Valor de alfa"
+alfa
+"Valor de Beta"
+beta
+plot(x=seq(0,12000,100),dgamma(x=seq(0,12000,100),shape = 51.28933,scale=111.2673),type = "l",col="red",lwd=2,xlab="x",ylab="fx", cex.lab=1.2,main=expression(paste("Modelo probabilístico de distribución Gamma para valores de temperatura de estrella")),cex.main=0.8)   
+
+
+```
+
+```{r}
+#Al no contar con un modelo teórico procedemos con el 2° modelo probabilístico
+
+plot(x=seq(0,10000,100), dnorm(x=seq(0,10000,100), mean=5706.823, sd=796.8579),type ="l",col=4,lwd=2,xlab="x",ylab="fx",ylim=c(0,0.001),cex.axis=1.2, cex.lab=1.2,main=expression(paste("Modelo probabilístico de distribución normal para valores de temperatura de estrella")),cex.main=0.8)
+
+
+
+```
+
+**Los modelos probabilísticos anteriores fueron seleccionados debido a
+que los valores que se pueden tomar son positivos, por lo cual la
+distribución gamma fue un excelente candidato, además que podía ser
+capaz de modelar una subida y bajada en los datos relativamente suave.
+Por otra parte, la distribución normal fue elegida ya que se observa una
+clara acumulación de datos entorno a un valor medio, si dejamos de tener
+en cuenta un par de datos atípicos y es bastante común usarla para este
+tipo de casos.**
+
+```{r}
+#Usaremos el método más sencillo que es usar la librería MASS, la cual estima puntualmente los parámetros deseados de nuestros modelos mediante el método de máxima verosimilitud.
+
+library(MASS)
+kepler_mle1 = fitdistr(koi_steff, densfun="gamma")
+
+library(MASS)
+kepler_mle2 = fitdistr(koi_steff, densfun="normal")
+
+#Recordemos que en "kepler_mle1" la estimación puntual de Beta, se reporta su inverso.
+kepler_mle1
+kepler_mle2
+
+#Notemos que nos resulta, lo mismo que anteriormente habíamos calculado
+
+```
+
+```{r}
+
+hist(koi_steff, prob=TRUE,main = "Distribución de Tempertaura en Estrellas", ylab = "Frecuencia", col = "grey", xlab="Temperatura(K°)")
+curve(dgamma(x, kepler_mle1$estimate[1], kepler_mle1$estimate[2]),col="red",lwd=2,add=T)
+
+
+```
+
+```{r}
+hist(koi_steff, prob=TRUE,main = "Distribución de Tempertaura en Estrellas", ylab = "Frecuencia", col = "grey", xlab="Temperatura(K°)")
+curve(dnorm(x, kepler_mle2$estimate[1], kepler_mle2$estimate[2]),col="orange",lwd=2,add=T)
+
+```
+
+```{r}
+hist(koi_steff, prob=TRUE,main = "Distribución de Tempertaura en Estrellas", ylab = "Frecuencia", col = "grey", xlab="Temperatura(K°)")
+curve(dgamma(x, kepler_mle1$estimate[1], kepler_mle1$estimate[2]),col="red",lwd=2,add=T)
+curve(dnorm(x, kepler_mle2$estimate[1], kepler_mle2$estimate[2]),col="orange",lwd=2,add=T)
+```
+
+```{r}
+#Ambos modelos se ven similares por lo que para decidir el mejor modelo usaremos:
+library(univariateML)
+library(dplyr)
+library(tibble)
+comparacion_aic <- AIC(mlgamma(koi_steff),mlnorm(koi_steff))
+comparacion_aic 
+
+```
+
+**Notamos que el valor de AIC en el modelo probabilístico de Gamma es
+menor, por lo que es el mejor entre ambos. Cabe destacar que la
+diferencia entre los modelos es pequeña, justo como lo esperabamos, ya
+que a pura vista se veían igual de apropiados**
+
+```{r}
+#La variable cualitativa en nuestro proyecto corresponde a koi_disposition, que básicamente es una variable la cual clasifica como confirmados, candidatos o falsos positivos a algunas observaciones. La relación con la variable cuantitativa de koi_steff (es temperatura de estrellas) es nula, por lo tanto convertiremos la variable koi_srad (radio de estrellas) a variable cualitativa
+
+max(koi_srad)
+min(koi_srad)
+mean(koi_srad)
+sd(koi_srad)
+```
+
+```{r}
+#Si la cualitativa la dividiamos en intervalos iguales, nos resulta que al rededor del 99.7% de los datos caían en la misma categoría, para hacer más interesante el análisis los dividiremos arbitrariamente (a conveniencia) de 0 a 1 serán aquellas estrellas de menor tamaño que el Sol y consideramos que de 1 a 3 la estrella es de tamaño parecido a la nuestra y así sucesivamente hasta llegar a los grandes, enormes y super.
+
+kepler4 <- NA
+kepler4[kepler3$koi_srad >= 0 & kepler3$koi_srad <= 1] <- 'Pequeño'
+kepler4[kepler3$koi_srad > 1 & kepler3$koi_srad <= 3] <- 'Normal'
+kepler4[kepler3$koi_srad > 3 & kepler3$koi_srad <= 25] <- 'Grande'    
+kepler4[kepler3$koi_srad > 25 & kepler3$koi_srad <= 45] <- 'Enorme'
+kepler4[kepler3$koi_srad > 45 & kepler3$koi_srad <= 230] <- 'Super'
+
+(tabla_radios = table(kepler4))
+
+```
+
+```{r}
+library(dplyr)
+kepler5 = dplyr::select(kepler3,kepoi_name,koi_srad, koi_steff)
+kepler5 <- cbind(kepler5,kepler4)
+```
+
+```{r}
+#Agrupamos los datos de temperatura con base a la clasificación de tamaño
+temp_peque = kepler5[kepler5$...4 == "Pequeño", 3]
+temp_norm = kepler5[kepler5$...4 == "Normal", 3]
+temp_gran = kepler5[kepler5$...4 == "Grande", 3]
+temp_enor = kepler5[kepler5$...4 == "Enorme", 3]
+temp_sup = kepler5[kepler5$...4 == "Super", 3]
+```
+
+```{r}
+qqnorm(temp_peque$koi_steff,pch=16)       
+qqline(temp_peque$koi_steff,lwd=2,col=2)
+
+qqnorm(temp_norm$koi_steff,pch=16)       
+qqline(temp_norm$koi_steff,lwd=2,col=2)
+
+qqnorm(temp_gran$koi_steff,pch=16)       
+qqline(temp_gran$koi_steff,lwd=2,col=2)
+
+qqnorm(temp_enor$koi_steff,pch=16)       
+qqline(temp_enor$koi_steff,lwd=2,col=2)
+
+qqnorm(temp_sup$koi_steff,pch=16)       
+qqline(temp_sup$koi_steff,lwd=2,col=2)
+
+
+#Vemos que todos los grupos de datos cumplen la normalidad (Prueba gráfica)
+
+```
+
+```{r}
+
+library(fBasics)
+lillieTest(temp_peque$koi_steff) 
+lillieTest(temp_norm$koi_steff)
+lillieTest(temp_gran$koi_steff)
+lillieTest(temp_enor$koi_steff)
+lillieTest(temp_sup$koi_steff)
+
+#Bueno, notamos que probablemente no se cumpla para las primeras tres, así que para los siguientes incisos podemos trabajar solo con los datos de temperatura para los estrellas supers y las enormes, que si demostraron normalidad en ambas pruebas.
+```
+
+```{r}
+vartest.mico<- var.test(temp_enor$koi_steff,temp_sup$koi_steff,ratio=1,alternative="two.sided",conf.level = 0.92)
+vartest.mico$conf.int
+
+```
+
+```{r}
+prueba.mico2<- t.test(temp_enor$koi_steff,temp_sup$koi_steff,alternative="greater",mu=0,paired=F,var.equal=F, conf.level=0.92)
+prueba.mico2$statistic
+prueba.mico2$p.value
+```
+
+Lo anterior nos dice que los conjuntos de los datos son efectivamente
+diferentes y la tempertaura de los planetas enormes, es diferente a la
+temperatura de los planetas Supers. Astronomicamente tiene sentido ya
+que aunque la temperatura de una estrella depende de muchos factores, el
+tamaño es uno de ellos.
+
+### OBJETIVO:
+
+> \*Conocer la relación entre la temperatura de un planeta, su radio y
+> el radio de la estrella que orbita.
+
+En la primera y segunda parte del proyecto se halló que la distribución
+de los datos recopilados por el satélite kepler no es normal.
+
+```{r warning=TRUE}
+library(rio)
+pl_0<- read.csv('/Users/114738/OneDrive/Escritorio/Proyectos/cumulative.csv', header = T);
+
+pl_1<- dplyr::select(pl_0,kepoi_name, koi_prad, koi_srad, koi_teq)
+
+attach(pl_1)
+
+
+library(dplyr)
+
+pl_1 <- pl_1 %>% group_by(kepoi_name) %>%   # %>% operador pipe
+  dplyr::filter (! duplicated(kepoi_name))
+pl_1<-drop_na(pl_1)
+pl_m<-pl_1[2:4]
+
+#Multiplicamos los radios de los planetas por 0.00916794 para que ambos radios se midan en radios solares.
+
+pl_m$koi_prad<-pl_m$koi_prad*0.00916794
+```
+
+### Gráficas
+
+Para poder estimar un modelo adecuado a nuestros datos y nuestro
+objetivo, primero utilizaremos la función "ggpairs" que nos permite
+comparar el compartamiento de las variables par a par.
+
+```{r include=TRUE,echo=TRUE}
+library(GGally)
+ggpairs(pl_m, upper = list(continuous = "smooth"), 
+                      lower = list(continuous = "blank"),
+                      diag = list(continuous = "densityDiag"))
+```
+
+Haciendo un rápido analisis a las gráficas, notamos que la única gáfica
+que presenta una tendencia relativamente evidente, es el diagrama entre
+el radio solar y la temperatura del planeta.
+
+Ahora buscamos una corelación entre nuestras variables para nuestro
+análisis.
+
+```{r include=TRUE,echo=TRUE}
+library("Hmisc")
+rcorr(as.matrix(pl_m))  # los datos deben estar como matriz
+
+# Una gráfica más
+
+library(corrplot)
+corrplot(cor(pl_m))   # correlograma
+```
+
+Notamos que no hay correlación entre el radio del sol y el del planeta.
+Pero existe una correlación entre el radio del sol y la temperatura del
+planeta.
+
+### Estimación del modelo múltiple usando R
+
+```{r include=TRUE,echo=TRUE}
+modelo1<- lm(pl_m$koi_teq~pl_m$koi_srad+pl_m$koi_prad, data = pl_m)  # con    todos los predictores
+summary(modelo1)
+
+# Error estandar de los coeficientes en R (manual)
+
+sqrt(diag(vcov(modelo1)))
+
+# Criterio VIF
+library(car)
+vif(modelo1)
+tol<- 1/vif(modelo1); tol
+```
+
+### Interpretación de los datos.
+
+El coeficiente $\beta_0$ puede ser interpretado como la temperatura
+promedio del planeta sin la presencia de una estrella. El coeficiente
+$\beta_1$ representa el cambio promedio de la temperatura del planeta
+con respecto a el radio del sol, es importante notar que el signo de
+este coeficiente es positivo por lo que se espera que al incremetar el
+radio de la estrella que orbita el planeta su temperatura incremente. El
+coeficiente $\beta_2$ represanta el cambio promedio de la temperatura
+del planeta cuando aumentamos su radio, donde a mayor radio deberíamos
+encontrar planetas más fríos. Notamos que la variable "radio del
+planeta" tiene un peso muy pequeño en el modelo, sin olvidar que el
+valor de p es relativamente grande, por lo que podemos considerar
+removerla del modelo ya que no esta dando una explicación concisa del
+modelo. En el caso del radio del planeta y el intersecto, su valor
+correspondiente a p es muy pequeño, por lo que podemos decir que son
+estadisticamente significativo.
+
+El coeficiente de ajuste R-cuadrado tiene un valor muy pequeño de 0.19
+,es decir solo es capaz de explicar el 19% de la variabilidad de las
+observaciones, y el error estandar es muy grande de 768.8 es decir que
+el junto de datos está muy disperso, lo que nos indica que no tenemos un
+buen primer modelo. Podemos notar que el error stadar del intercepto y
+del coeficiente $\beta_1$ representan menos del 1% por ciento de su
+coeficiente, mientras que error standar el coeficiente $\beta_2$
+representa más del 20% del valor absoluto del coeficiente. Por lo que se
+puede intuir que el coeficiente $\beta_2$ puede estar sesgando el
+modelo.
+
+## En búsqueda de un nuevo modelo: selección de los mejores predictores (regresores)
+
+```{r include=TRUE,echo=TRUE}
+step(object = modelo1, direction = "both", trace = 1)  # stepwise mixto
+```
+
+Notamos que el modelo para dos variables presenta un mayor error a un
+posible modelo con una sola variable. En los resultados anteriores
+notamos que no había una clara relación entre el radio del planeta y su
+temperatura, por lo que, con el objetivo de mejorar el modelo, vamos a
+descartar esta variable y quedarnos con el radio del sol.
+
+# Modelo 2
+
+Proponemos un segundo modelo esta vez considerando una sola de las
+variables "Radio Solar".
+
+```{r include=TRUE,echo=TRUE}
+modelo2<- lm(pl_m$koi_teq~pl_m$koi_srad, data = pl_m)
+
+plot(pl_m$koi_srad,pl_m$koi_teq,pch=1,xlab="Radio solar. (Radios solares)",ylab="Temperatura planetar (K)", main="Relación Radio solar temperatura planetar.")
+
+abline(modelo2,col="red")
+
+summary(modelo2)
+```
+
+Notamos que para este segundo modelo el valor de R-cuadrada disminuyo
+muy poco mientras que el error medio aumento . Esto quiere decir que no
+estro segúndo modelo esta explicando menos el cambio en la temperatura
+del planeta. Algo que es alentador es que el error para el intercepto y
+la variable $\beta_1$ tiene menor peso que el modelo anterior.
+
+Para poder obtener un modelo adecuado vamos a hacer un analisis al
+conjunto de datos y así determinar si los datos atipicos son los que
+están provocando estos errores tan grandes en el modelo.
+
+# Gráficas de diagnostico.
+
+```{r include=TRUE,echo=TRUE}
+plot(modelo2)
+```
+
+### COMENTARIOS SOBRE LAS GRÁFICAS
+
+> *1. La primera gráfica muestra que el modelo lineal propuesto no esta
+> explicando el comportamiento de la temperatura de los planetas
+> estudiados. Esto puede deberse a la falta de correlación entre el
+> radio del planeta y su temperatura y, a su vez, de todos los datos
+> atipicos*
+
+> *2.De la segunda gráfica se tiene que interpretar con cuidado porque
+> apesar de que la mayor cantidad de los datos están sobre la recta y
+> pareciese describir una distribución normal, los extremos se despengan
+> mucho de la misma, por lo que no consideramos normalidad en los
+> residuos.*
+
+> *3. La varianza de los residuos puede considerarse constante porque no
+> se observa que los residuos sigan un patrón.*
+
+> *4. No todas las observaciones están dentro de la distancia de Cook,
+> hay 7 observaciones dentro de nuestro conjunto de datos que están
+> afectando nuestra regresión.*
+
+Analizando las gráficas de residuales podemos notar que un factor claro
+que esta sesgando la regresión de nuestro modelo son los datos atípicos.
+Por lo que, como siguiente paso para mejorar el modelo, removeremos
+aquellos datos que se considerean atipicos para el conjunto de datos.
+
+## Identificación de valores atípicos o influyentes en la regresión
+
+Analicemos las variables por separado, para ello usamos un diagrama de
+caja y brazos.
+
+```{r include=TRUE,echo=TRUE}
+boxplot.matrix(as.matrix(pl_m),use.cols = T)
+```
+
+> Analisis del diagrama de caja y brazos.
+
+Notamos que en efecto existen una cantidad considerable de datos
+atipicos en cada una de las variables. Dichos datos pueden estar
+sesgando la regresión de nuestro modelo.
+
+I. Criterio para detectar influyentes: $|dfbeta|>\sqrt{\frac{2}{n}}$
+
+```{r include=TRUE,echo=TRUE}
+n<- nrow(pl_1)
+
+abs(dfbeta(modelo1))>sqrt(2/n)
+```
+
+Notamos que no es claro si la mayor parte de los datos son influyentes
+para nuestro intersecto, se observa, además que la mayor parte de los
+datos no son influyentes para el coeficiente $\beta_1$ y de igual manera
+para el coeficiente $\beta_2$.
+
+II. Criterio para detectar observaciones con alto "leverage":
+    $h_{ii}>3\frac{k}{n}$
+
+```{r include=TRUE,echo=TRUE}
+lev<- hatvalues(modelo2)
+
+plot(lev, ylab="Leverage")
+
+k<- 1+2 
+
+regla_leverage<- 3*(k/n); regla_leverage   
+
+cbind(lev>regla_leverage)
+
+cooks.distance(modelo2)
+```
+
+> \*Conclusión: Tenemos demasiados observaciones laverege.
+
+```{r include=TRUE,echo=TRUE}
+summary(influence.measures(modelo2))
+```
+
+Notamos de la primera columna que los datos con mayor relevancia para el
+modelo son aquellos que cumplen ser menores a 0.6 radio solar. Una vez
+que vimos el peso de este conjunto de datos podemos iniciar una busqueda
+de los valores atipicos en nuestro conjunto de datos.
+
+# Gráfica de la distribución de nuestros datos y criterio para detectar outliers y datos leverage
+
+```{r}
+influencePlot(modelo2)
+library(olsrr)
+ols_plot_resid_lev(modelo2)
+```
+
+Notamos que los datos que son Outliers y leverage son demasiados, es
+decir, que son datos que están influyendo demasiado en la regresión y es
+necesario hacer un análisis sin ellos.
+
+```{r include=TRUE,echo=TRUE}
+j<-outlierTest(modelo2) 
+```
+
+Para ello consideramos el sub-conjunto tal que no incluya a los valores
+8653, 7548, 5319, 2082, 4352, 4589, 6914, 8939, 4322, 4792 que son los
+datos que se identificaron como outliers dentro de nuestro conjunto
+"Radio solar".
+
+# Modelo 3
+
+En este tercer modelo no se vana considerar las observaciones
+catalogadas como outliers con el objetivo de mejorar los resultados.
+
+```{r}
+pl_2<- pl_m[-c(8653,7548,5319,2082,4352,4589,6914,8939,4322,4792), ]
+
+#Ajuste con intersecto.
+fit_koi<- lm(pl_2$koi_teq~pl_2$koi_srad); 
+
+#Ajuste sin intersecto.
+fit_koi1.2<- lm(pl_2$koi_teq~pl_2$koi_srad-1);
+
+#Gráficas
+
+plot(pl_2$koi_srad,pl_2$koi_teq,pch=1,xlab="Radio solar. (Radios solares)",ylab="Temperatura planetar (K)", main="Relación Radio solar temperatura planetar.")
+
+abline(fit_koi,col="red")
+
+abline(fit_koi1.2,col="blue")
+```
+
+```{r}
+summary(fit_koi)
+```
+
+```{r}
+summary(fit_koi1.2)
+```
+
+Haciendo los cambios adecuados al modelo, hemos encontrado que la
+regresión es capaz de explicar el 20% del cambio en la temperatura de
+los planetas correctamente. Tenemos un error estadar muy alto, pero el
+error del intersepto y el coeficientes $\beta_1$ no tienen valores
+significantes. Inclusive nuestro coeficiente p sigue siendo bajo.
+
+Como previamente se dijo, el intersepto se interpreta como la
+temperatura promedio registrada por el satélite sin presencia de una
+estrella, en este caso 944.573 K. El coefeciente $\beta_1=83.256$ se
+interpreta como el cambio promedio a razón del radio solar de la
+temperatura del planeta.
+
+Pero notamos que el modelo sin el intercepto el modelo describe mejor
+fenómeno que queremos estudiar. Es capaz de explicar correctamente el
+27% del cambio de la temperatura promedio del planeta con respecto al
+radio solar y tiene un error estandar menor a los anteriores modelos.
+Además de que el error de nuestro coeficiente $\beta_1$ no representa
+más del 2% de nuestro valor real. La razón por la que no estamos
+considerando el modelo sin el intercepto es porque el problema pierde
+sentido físico, no es posible encontrar un planeta con temperatura 0 K
+ya que es un hecho físico imposible.
+
+##Comparación de los modelos. Tabla.1 Comparativa de modelos donde x
+representa la variable radio del sol, y el radio del planeta.
+
+|          Modelos.           |                                                                            Inferencia individual.                                                                            | Inferencia conjunta.                | Bonda de ajuste. |                                                                        S. Regresión lineal que se cumplen.                                                                        |
+|:---------:|:------------------:|-----------|:---------:|:-------------------:|
+| 979.505+61.683(x)-0.0073(y) | St.error Inter.= 8.3 (N.R.+2%) Beta1 = 1.3(N.R.+2%) Beta2 = 0.28 (R.+2%) Significancia est.(P) Inter.\<2e-16 Signi. est Beta1\<2e-16 Signi. est Beta2\<0.0511 No singni. est | Error st. = 768.8 P (value) \<2e-16 |    R\^2=0.194    |                                     El modelo presenta un valor de p muy pequeño. Los errores del intercepto y de Beta1 es son muy pequeños.                                      |
+|      979.113+61.475(x)      |                         St. error Inter.=8.31 (N.R.+2%) Beta1=1.3(N.R.+2%) Significancia est.(P) Inter.\<2e-16 Signi. est. Beta1\<2e-16 Signi. est.                          | Error st. = 769.1 P(value) \<2e-16  |    R\^2=0.193    | El modelo cumple con que todas las variables tienen significancia estadística y los errores de ambos coeficientes son muy pequeños comparados con el valor del intercepto y beta1 |
+|      944.57+83.256(x)       |                                      St. error Inter.=8.17(N.R.+2%) Beta1=1.7(N.R.+2%) Significancia est.(P) Inter.\<2e-16 Beta1\<2e-16                                      | Error st. = 733 P(value) \<2e-16    |    R\^2=0.203    | El modelo cumple con que todas las variables tienen significancia estadística y los errores de ambos coeficientes son muy pequeños comparados con el valor del intercepto y beta1 |
+|         414.953(x)          |                                                                        St. error Beta1=2.54 (N.R.+2%)                                                                        | Error st.=1151 P(value)\<2e-16      |    R\^2=0.27     |                                                                                                                                                                                   |
+
+# Intervalos de confianza de 0.95
+
+```{r include=TRUE,echo=TRUE}
+ic1<- confint(fit_koi, level=0.95); ic1
+```
+
+> \*Intercepto
+
+Podemos asegurar entonces, con un 97.5% de certeza que la temperatura
+promedio del planeta de estar entre los 929.622 K y 960.52 K
+
+> \*Coeficiente $\beta_1$
+
+Podemos asegurar entonces, con un 97.5% de certeza, que al aumentar el
+radio solar que orbita el planeta en una unidad, su temperatura va
+aumentar en promedio enter 79.863 K y 86.64 K
+
+### Transformacion BoxCox Sobre el modelo 1.
+
+Por úlitmo, vamosa realizar una prueba sobre nuestras variables para ver
+a que variables podemos aplicar una transformación BoxCox
+
+```{r}
+library(nortest)
+lillie.test(pl_m$koi_teq) 
+lillie.test(pl_m$koi_srad) 
+lillie.test(pl_m$koi_prad)  
+```
+
+Y concluimos que ninguna de nuestras variables tiene normalidad. Por lo
+tanto, la transformación será aplicada a nuestrás tres variables.
+
+```{r}
+library(DescTools)
+lambda.opt1<- BoxCoxLambda(pl_2$koi_teq, method= "loglik", lower=-5, upper=5); lambda.opt1
+lambda.opt2<- BoxCoxLambda(pl_2$koi_srad, method= "loglik", lower=-5, upper=5); lambda.opt2
+
+```
+
+```{r}
+Temperatura<-lillie.test(pl_2$koi_teq^(0.05)/(0.05));Temperatura
+Radio_solar<-lillie.test(pl_2$koi_srad^(-0.55)/(-0.55));Radio_solar
+
+```
+
+Vemos que después de aplicar la transformación BoxCox nuestros datos
+siguen sin presentar normalidad dado que los valores de "p" son muy
+pequeños.
+
+### CONCLUSION:
+
+Se hicieron 3 modelos, en el primero de ellos se consideraron 2
+variables para intentar explicar la temperatura promedio de un planeta
+registrada por el satelite. En dicho primer modelo se estimo que: la
+temperatura promedio de un planeta sin presencia de una estrella que
+orbitar (intersepto) es de $979.505$K, el cambio promedio a razón del
+radio solar de la temperatura del planeta es de $61.683265$K y el cambio
+promedio de temperatura a razón del radio del planeta es $-0.79$K. Era
+capaz de explicar el fenómeno en un $19.4%$ y tiene un error estandar
+residual de 768. El intersecto y el coeficiente $\beta_1$ presentaron
+significancia estadística, pero el radio del planeta tenía un valor de p
+relativamente alto.
+
+En el segúndo modelo se decidió remover la variable radio del planeta
+por su alto error en el primer modelo y su baja relevancia estadísitica.
+Se obtuvo que el intersecto del modelo era de $979.11 K$ y el cambio
+promedio en la temperatura del planeta a razón del radio del sol era de
+$61.47$ K, ambas variables con significacia estadistica en el modelo.
+Desafortunadamente el modelo no explicaba más del $19.3%$ del fenomeno
+estudiado y el error estandar de los residuos seguía siendo muy alto,
+por lo que se decidó hacer una prueba que nos permitiese ver cuales eran
+los datos con mayor relevancia en el modelo y cuales eran outliers. Se
+encontraron 10 outliers por lo que para un tercer modelo se removieron.
+
+En nuestro tercer y ultimo modelo obtivimos una mejora del $0.7%$ a la
+hora de explicar el fenómeno con el modelo propuesto. Se obtuvo un
+intersecto de $944.57$k y un coeficiente $\beta_1$=83.256k, ambos con
+significancia estadística y con errores no relevantes según su valor
+real. Se realizó una transformación BoxCox de nuestros datos, pero esto
+no logro normalizar las variables.
+
+Se hizo un ultimo modelo sin intersepto, capaz de explicar el $27%$ del
+fenómeno, pero este ultimo fue descartado ya que no es coherente con la
+realidad, ningún planeta puede tener una temperatura promedio de 0 k.
+Algo que vale la pena recalcar es que la temperatura registrada en cada
+uno de los intersectos es muy alta, y pareciera que hay algún otro
+factor que está modificando las mediciones. Una posible razón a estos
+resultados puede ser que los planetas registrados en el conjunto de
+datos, tenían orbitas muy cercanas al sol o que su composición permitía
+mantener temperaturas muy altas, por lo que una mejora a este modelo
+sería agregar y analizar ese tipo de variables.
+
+Por tanto, se utilizó el tercer modelo para estimar los intervalo de
+confianza del $97.5%$ ya que se consideró como el mejor. Se encontró que
+la temperatura promedio de un planeta observado, por el satélite, sin
+precencia de un sol esta entre los 929.622 K y 960.52 K y que al
+aumentar el radio solar que orbita el planeta en una unidad, su
+temperatura va aumentar en promedio enter 79.863 K y 86.64 K.
